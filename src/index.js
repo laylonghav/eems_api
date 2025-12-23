@@ -11,6 +11,14 @@ const server = http.createServer(app);
 // Initialize WebSocket server
 initWebSocket(server);
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Welcome to EEMS API",
+    status: "Server is running",
+  });
+});
+
 app.use("/api/energy", eemsRoutes);
 
 const PORT = process.env.PORT || 10000;
