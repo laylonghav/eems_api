@@ -13,8 +13,8 @@ initWebSocket(server);
 
 app.use("/api/energy", eemsRoutes);
 
-const port = process.env.PORT;
-server.listen(port, process.env.HOST, () => {
-  console.log(`Server listening running on http://${process.env.HOST}:${port}`);
-  console.log(`Websocket running on wws://${process.env.HOST}:${port}/ws`);
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, process.env.HOST, () => {
+  console.log(`Server listening running on http://${process.env.HOST}:${PORT}`);
+  console.log(`Websocket running on wws://${process.env.HOST}:${PORT}/ws`);
 });
