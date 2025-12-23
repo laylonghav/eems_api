@@ -1,0 +1,7 @@
+*.log
+.env
+/.vscode
+/node_modules
+# Google Cloud / Firebase secrets
+src/configs/serviceAccountKey.json
+
