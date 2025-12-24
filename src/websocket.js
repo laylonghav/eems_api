@@ -2,7 +2,11 @@ const WebSocket = require("ws");
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
+const isSameOrAfter = require("dayjs/plugin/isSameOrAfter");
+const isSameOrBefore = require("dayjs/plugin/isSameOrBefore");
 
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -75,14 +79,27 @@ function initWebSocket(server) {
 }
 
 function isWithinSubmitWindow() {
-  const now = dayjs().tz("Asia/Phnom_Penh");
+  const now = dayjs().tz("Asia/Phnom_Penh").valueOf();
 
-  const start = now.clone().hour(11).minute(59).second(52).millisecond(0);
+  const start = dayjs()
+    .tz("Asia/Phnom_Penh")
+    .hour(11)
+    .minute(59)
+    .second(52)
+    .millisecond(0)
+    .valueOf();
 
-  const end = now.clone().hour(12).minute(0).second(0).millisecond(0);
+  const end = dayjs()
+    .tz("Asia/Phnom_Penh")
+    .hour(12)
+    .minute(0)
+    .second(0)
+    .millisecond(0)
+    .valueOf();
 
-  return now.isSameOrAfter(start) && now.isSameOrBefore(end);
+  return now >= start && now <= end;
 }
+
 
 async function saveLastReadingPerDay(date, data) {
   // Allow only 11:59:52 → 12:00:00
