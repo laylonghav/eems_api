@@ -1,5 +1,11 @@
 const WebSocket = require("ws");
 const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 const { db } = require("./configs/firebase");
 
 let espClient = null;
@@ -36,8 +42,11 @@ function initWebSocket(server) {
       if (esp32Data.length > 1000) esp32Data.shift();
 
       // Save last reading of the day
+      const now = dayjs().tz("Asia/Phnom_Penh");
 
-      const today = dayjs().format("YYYY-MM-DD");
+
+      // const today = dayjs().format("YYYY-MM-DD");
+      const today = now.format("YYYY-MM-DD");
       await saveLastReadingPerDay(today, data);
     });
 
@@ -148,8 +157,8 @@ async function saveLastReadingPerDay(date, data) {
         });
     }
 
-    console.log("Saved last reading for", date);
-    console.log("Current Time: ", dayjs().format("YYYY-MM-DD HH:mm:ss"));
+    console.log("Saved last reading for", now.format("YYYY-MM-DD"));
+    console.log("Current Time:", now.format("YYYY-MM-DD HH:mm:ss"));
   } catch (err) {
     console.error("Error saving last reading:", err.message);
   }
