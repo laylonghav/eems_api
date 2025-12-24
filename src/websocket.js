@@ -38,8 +38,6 @@ function initWebSocket(server) {
       // Save last reading of the day
 
       const today = dayjs().format("YYYY-MM-DD");
-
-      console.log("Saved last : ", today);
       await saveLastReadingPerDay(today, data);
     });
 
@@ -150,7 +148,7 @@ async function saveLastReadingPerDay(date, data) {
         });
     }
 
-    // console.log("Saved last reading for", date);
+    console.log("Saved last reading for", date);
   } catch (err) {
     console.error("Error saving last reading:", err.message);
   }
