@@ -84,7 +84,7 @@ function isWithinSubmitWindow() {
   const start = dayjs()
     .tz("Asia/Phnom_Penh")
     .hour(12)
-    .minute(5)
+    .minute(15)
     .second(0)
     .millisecond(0)
     .valueOf();
@@ -92,7 +92,7 @@ function isWithinSubmitWindow() {
   const end = dayjs()
     .tz("Asia/Phnom_Penh")
     .hour(12)
-    .minute(5)
+    .minute(15)
     .second(59)
     .millisecond(999)
     .valueOf();
