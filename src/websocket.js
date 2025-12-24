@@ -148,7 +148,7 @@ async function saveLastReadingPerDay(date, data) {
         });
     }
 
-    console.log("Saved last reading for", date);
+    console.log("Saved last reading for", date.format("YYYY-MM-DDTHH:mm:ss"));
   } catch (err) {
     console.error("Error saving last reading:", err.message);
   }
