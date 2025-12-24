@@ -74,14 +74,115 @@ function initWebSocket(server) {
   console.log("WebSocket initialized");
 }
 
-// Send message to ESP32 only
-function sendToESP32(message) {
-  if (espClient && espClient.readyState === WebSocket.OPEN) {
-    espClient.send(message);
-  } else {
-    console.log("ESP32 not connected");
+function isWithinSubmitWindow() {
+  const now = dayjs().tz("Asia/Phnom_Penh");
+
+  const start = now.clone().hour(11).minute(59).second(52).millisecond(0);
+
+  const end = now.clone().hour(12).minute(0).second(0).millisecond(0);
+
+  return now.isSameOrAfter(start) && now.isSameOrBefore(end);
+}
+
+async function saveLastReadingPerDay(date, data) {
+  // Allow only 11:59:52 → 12:00:00
+  if (!isWithinSubmitWindow()) return;
+
+  try {
+    const batch = db.batch();
+    const timestamp = new Date();
+
+    if (data.Main) {
+      batch.set(
+        db.collection("Main").doc(date),
+        {
+          energy: {
+            monthly: data.Main.EnergyMonthly,
+            yearly: data.Main.EnergyYearly,
+          },
+          submittedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    if (data.AirCon) {
+      batch.set(
+        db.collection("AirCon").doc(date),
+        {
+          energy: {
+            monthly: data.AirCon.EnergyMonthly,
+            yearly: data.AirCon.EnergyYearly,
+          },
+          submittedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    if (data.Lighting) {
+      batch.set(
+        db.collection("Lighting").doc(date),
+        {
+          energy: {
+            monthly: data.Lighting.EnergyMonthly,
+            yearly: data.Lighting.EnergyYearly,
+          },
+          submittedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    if (data.Plug) {
+      batch.set(
+        db.collection("Plug").doc(date),
+        {
+          energy: {
+            monthly: data.Plug.EnergyMonthly,
+            yearly: data.Plug.EnergyYearly,
+          },
+          submittedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    if (data.Other) {
+      batch.set(
+        db.collection("Other").doc(date),
+        {
+          energy: {
+            monthly: data.Other.EnergyMonthly,
+            yearly: data.Other.EnergyYearly,
+          },
+          submittedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+
+    const now = dayjs().tz("Asia/Phnom_Penh");
+    console.log("Data submitted at", now.format("YYYY-MM-DD HH:mm:ss"));
+  } catch (err) {
+    if (err.code === 8) {
+      console.warn("Firestore quota exceeded – skipped");
+    } else {
+      console.error("Error saving last reading:", err);
+    }
   }
 }
+
+// Send message to ESP32 only
+// function sendToESP32(message) {
+//   if (espClient && espClient.readyState === WebSocket.OPEN) {
+//     espClient.send(message);
+//   } else {
+//     console.log("ESP32 not connected");
+//   }
+// }
 
 // Save last reading per day (overwrite the same document)
 async function saveLastReadingPerDay(date, data) {
