@@ -83,22 +83,23 @@ function isWithinSubmitWindow() {
 
   const start = dayjs()
     .tz("Asia/Phnom_Penh")
-    .hour(11)
-    .minute(59)
-    .second(52)
+    .hour(12)
+    .minute(5)
+    .second(0)
     .millisecond(0)
     .valueOf();
 
   const end = dayjs()
     .tz("Asia/Phnom_Penh")
     .hour(12)
-    .minute(0)
-    .second(0)
-    .millisecond(0)
+    .minute(5)
+    .second(59)
+    .millisecond(999)
     .valueOf();
 
   return now >= start && now <= end;
 }
+
 
 
 async function saveLastReadingPerDay(date, data) {
