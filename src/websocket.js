@@ -44,7 +44,6 @@ function initWebSocket(server) {
       // Save last reading of the day
       const now = dayjs().tz("Asia/Phnom_Penh");
 
-
       // const today = dayjs().format("YYYY-MM-DD");
       const today = now.format("YYYY-MM-DD");
       await saveLastReadingPerDay(today, data);
@@ -156,6 +155,7 @@ async function saveLastReadingPerDay(date, data) {
           timestamp: new Date(),
         });
     }
+    const now = dayjs().tz("Asia/Phnom_Penh");
 
     console.log("Saved last reading for", now.format("YYYY-MM-DD"));
     console.log("Current Time:", now.format("YYYY-MM-DD HH:mm:ss"));
