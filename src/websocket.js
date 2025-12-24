@@ -148,7 +148,8 @@ async function saveLastReadingPerDay(date, data) {
         });
     }
 
-    console.log("Saved last reading for", date.format("YYYY-MM-DDTHH:mm:ss"));
+    console.log("Saved last reading for", date);
+    console.log("Current Time: ", dayjs().format("YYYY-MM-DD HH:mm:ss"));
   } catch (err) {
     console.error("Error saving last reading:", err.message);
   }
