@@ -17,6 +17,7 @@ let wss = null;
 
 // store last ESP32 message
 let esp32Data = []; // realtime storage
+let lastSubmittedDate = null; // Track last date submitted
 
 function initWebSocket(server) {
   wss = new WebSocket.Server({ noServer: true });
@@ -79,32 +80,17 @@ function initWebSocket(server) {
 }
 
 function isWithinSubmitWindow() {
-  const now = dayjs().tz("Asia/Phnom_Penh").valueOf();
-
-  const start = dayjs()
-    .tz("Asia/Phnom_Penh")
-    .hour(12)
-    .minute(15)
-    .second(0)
-    .millisecond(0)
-    .valueOf();
-
-  const end = dayjs()
-    .tz("Asia/Phnom_Penh")
-    .hour(12)
-    .minute(15)
-    .second(59)
-    .millisecond(999)
-    .valueOf();
-
-  return now >= start && now <= end;
+  const now = dayjs().tz("Asia/Phnom_Penh");
+  const start = now.clone().hour(23).minute(59).second(50).millisecond(0);
+  const end = now.clone().hour(23).minute(59).second(59).millisecond(999);
+  return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
-
-
 async function saveLastReadingPerDay(date, data) {
-  // Allow only 11:59:52 → 12:00:00
   if (!isWithinSubmitWindow()) return;
+
+  // Prevent multiple writes in the same day
+  if (lastSubmittedDate === date) return;
 
   try {
     const batch = db.batch();
@@ -118,7 +104,7 @@ async function saveLastReadingPerDay(date, data) {
             monthly: data.Main.EnergyMonthly,
             yearly: data.Main.EnergyYearly,
           },
-          submittedAt: timestamp,
+          timestamp: timestamp,
         },
         { merge: true }
       );
@@ -132,7 +118,7 @@ async function saveLastReadingPerDay(date, data) {
             monthly: data.AirCon.EnergyMonthly,
             yearly: data.AirCon.EnergyYearly,
           },
-          submittedAt: timestamp,
+          timestamp: timestamp,
         },
         { merge: true }
       );
@@ -146,7 +132,7 @@ async function saveLastReadingPerDay(date, data) {
             monthly: data.Lighting.EnergyMonthly,
             yearly: data.Lighting.EnergyYearly,
           },
-          submittedAt: timestamp,
+          timestamp: timestamp,
         },
         { merge: true }
       );
@@ -160,7 +146,7 @@ async function saveLastReadingPerDay(date, data) {
             monthly: data.Plug.EnergyMonthly,
             yearly: data.Plug.EnergyYearly,
           },
-          submittedAt: timestamp,
+          timestamp: timestamp,
         },
         { merge: true }
       );
@@ -174,13 +160,14 @@ async function saveLastReadingPerDay(date, data) {
             monthly: data.Other.EnergyMonthly,
             yearly: data.Other.EnergyYearly,
           },
-          submittedAt: timestamp,
+          timestamp: timestamp,
         },
         { merge: true }
       );
     }
 
     await batch.commit();
+    lastSubmittedDate = date;
 
     const now = dayjs().tz("Asia/Phnom_Penh");
     console.log("Data submitted at", now.format("YYYY-MM-DD HH:mm:ss"));
