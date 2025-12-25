@@ -81,8 +81,8 @@ function initWebSocket(server) {
 
 function isWithinSubmitWindow() {
   const now = dayjs().tz("Asia/Phnom_Penh");
-  const start = now.clone().hour(17).minute(11).second(50).millisecond(0);
-  const end = now.clone().hour(17).minute(11).second(59).millisecond(999);
+  const start = now.clone().hour(17).minute(18).second(50).millisecond(0);
+  const end = now.clone().hour(17).minute(18).second(59).millisecond(999);
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
