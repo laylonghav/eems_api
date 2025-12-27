@@ -90,7 +90,9 @@ function calcEnergy(newVal, oldVal) {
   const n = Number(newVal);
   const o = Number(oldVal);
   if (Number.isNaN(n) || Number.isNaN(o)) return "0.000";
-  return Math.max(n - o, 0).toFixed(3);
+  const diff = Math.max(n - o, 0);
+  // return NUMBER with 3 decimal places
+  return Math.round(diff * 1000) / 1000;
 }
 
 function getYesterday(date) {
