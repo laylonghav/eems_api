@@ -120,8 +120,8 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Main").doc(date),
         {
           energy: {
-            // monthly: data.Main.EnergyMonthly,
-            // yearly: data.Main.EnergyYearly,
+            dailyMonthly: data.Main.EnergyMonthly,
+            dailyYearly: data.Main.EnergyYearly,
             monthly: prev
               ? calcEnergy(data.Main.EnergyMonthly, prev.monthly)
               : 0,
@@ -142,8 +142,8 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("AirCon").doc(date),
         {
           energy: {
-            // monthly: data.AirCon.EnergyMonthly,
-            // yearly: data.AirCon.EnergyYearly,
+            dailyMonthly: data.AirCon.EnergyMonthly,
+            dailyYearly: data.AirCon.EnergyYearly,
             monthly: prev
               ? calcEnergy(data.AirCon.EnergyMonthly, prev.monthly)
               : 0,
@@ -166,8 +166,8 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Lighting").doc(date),
         {
           energy: {
-            // monthly: data.Lighting.EnergyMonthly,
-            // yearly: data.Lighting.EnergyYearly,
+            dailyMonthly: data.Lighting.EnergyMonthly,
+            dailyYearly: data.Lighting.EnergyYearly,
             monthly: prev
               ? calcEnergy(data.Lighting.EnergyMonthly, prev.monthly)
               : 0,
@@ -190,8 +190,8 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Plug").doc(date),
         {
           energy: {
-            // monthly: data.Plug.EnergyMonthly,
-            // yearly: data.Plug.EnergyYearly,
+            dailyMonthly: data.Plug.EnergyMonthly,
+            dailyYearly: data.Plug.EnergyYearly,
             monthly: prev
               ? calcEnergy(data.Plug.EnergyMonthly, prev.monthly)
               : 0,
@@ -212,8 +212,8 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Other").doc(date),
         {
           energy: {
-            // monthly: data.Other.EnergyMonthly,
-            // yearly: data.Other.EnergyYearly,
+            dailyMonthly: data.Other.EnergyMonthly,
+            dailyYearly: data.Other.EnergyYearly,
             monthly: prev
               ? calcEnergy(data.Other.EnergyMonthly, prev.monthly)
               : 0,
