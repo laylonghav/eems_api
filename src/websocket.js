@@ -81,16 +81,16 @@ function initWebSocket(server) {
 
 function isWithinSubmitWindow() {
   const now = dayjs().tz("Asia/Phnom_Penh");
-  const start = now.clone().hour(12).minute(18).second(50).millisecond(0);
-  const end = now.clone().hour(12).minute(18).second(59).millisecond(999);
+  const start = now.clone().hour(23).minute(59).second(50).millisecond(0);
+  const end = now.clone().hour(23).minute(59).second(59).millisecond(999);
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
 function calcEnergy(newVal, oldVal) {
   const n = Number(newVal);
   const o = Number(oldVal);
-  if (Number.isNaN(n) || Number.isNaN(o)) return 0;
-  return Math.max(n - o, 0);
+  if (Number.isNaN(n) || Number.isNaN(o)) return "0.000";
+  return Math.max(n - o, 0).toFixed(3);
 }
 
 function getYesterday(date) {
@@ -99,7 +99,6 @@ function getYesterday(date) {
     .subtract(1, "day")
     .format("YYYY-MM-DD");
 }
-
 
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
@@ -121,14 +120,12 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Main").doc(date),
         {
           energy: {
-            monthly: data.Main.EnergyMonthly,
-            yearly: data.Main.EnergyYearly,
-            dailyMonthly: prev
+            // monthly: data.Main.EnergyMonthly,
+            // yearly: data.Main.EnergyYearly,
+            monthly: prev
               ? calcEnergy(data.Main.EnergyMonthly, prev.monthly)
               : 0,
-            dailyYearly: prev
-              ? calcEnergy(data.Main.EnergyYearly, prev.yearly)
-              : 0,
+            yearly: prev ? calcEnergy(data.Main.EnergyYearly, prev.yearly) : 0,
           },
           timestamp,
         },
@@ -145,12 +142,12 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("AirCon").doc(date),
         {
           energy: {
-            monthly: data.AirCon.EnergyMonthly,
-            yearly: data.AirCon.EnergyYearly,
-            dailyMonthly: prev
+            // monthly: data.AirCon.EnergyMonthly,
+            // yearly: data.AirCon.EnergyYearly,
+            monthly: prev
               ? calcEnergy(data.AirCon.EnergyMonthly, prev.monthly)
               : 0,
-            dailyYearly: prev
+            yearly: prev
               ? calcEnergy(data.AirCon.EnergyYearly, prev.yearly)
               : 0,
           },
@@ -169,12 +166,12 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Lighting").doc(date),
         {
           energy: {
-            monthly: data.Lighting.EnergyMonthly,
-            yearly: data.Lighting.EnergyYearly,
-            dailyMonthly: prev
+            // monthly: data.Lighting.EnergyMonthly,
+            // yearly: data.Lighting.EnergyYearly,
+            monthly: prev
               ? calcEnergy(data.Lighting.EnergyMonthly, prev.monthly)
               : 0,
-            dailyYearly: prev
+            yearly: prev
               ? calcEnergy(data.Lighting.EnergyYearly, prev.yearly)
               : 0,
           },
@@ -193,14 +190,12 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Plug").doc(date),
         {
           energy: {
-            monthly: data.Plug.EnergyMonthly,
-            yearly: data.Plug.EnergyYearly,
-            dailyMonthly: prev
+            // monthly: data.Plug.EnergyMonthly,
+            // yearly: data.Plug.EnergyYearly,
+            monthly: prev
               ? calcEnergy(data.Plug.EnergyMonthly, prev.monthly)
               : 0,
-            dailyYearly: prev
-              ? calcEnergy(data.Plug.EnergyYearly, prev.yearly)
-              : 0,
+            yearly: prev ? calcEnergy(data.Plug.EnergyYearly, prev.yearly) : 0,
           },
           timestamp,
         },
@@ -217,14 +212,12 @@ async function saveLastReadingPerDay(date, data) {
         db.collection("Other").doc(date),
         {
           energy: {
-            monthly: data.Other.EnergyMonthly,
-            yearly: data.Other.EnergyYearly,
-            dailyMonthly: prev
+            // monthly: data.Other.EnergyMonthly,
+            // yearly: data.Other.EnergyYearly,
+            monthly: prev
               ? calcEnergy(data.Other.EnergyMonthly, prev.monthly)
               : 0,
-            dailyYearly: prev
-              ? calcEnergy(data.Other.EnergyYearly, prev.yearly)
-              : 0,
+            yearly: prev ? calcEnergy(data.Other.EnergyYearly, prev.yearly) : 0,
           },
           timestamp,
         },
