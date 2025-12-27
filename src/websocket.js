@@ -86,6 +86,21 @@ function isWithinSubmitWindow() {
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
+function calcEnergy(newVal, oldVal) {
+  const n = Number(newVal);
+  const o = Number(oldVal);
+  if (Number.isNaN(n) || Number.isNaN(o)) return 0;
+  return Math.max(n - o, 0);
+}
+
+function getYesterday(date) {
+  return dayjs(date)
+    .tz("Asia/Phnom_Penh")
+    .subtract(1, "day")
+    .format("YYYY-MM-DD");
+}
+
+
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
 
@@ -95,72 +110,123 @@ async function saveLastReadingPerDay(date, data) {
   try {
     const batch = db.batch();
     const timestamp = new Date();
+    const yesterday = getYesterday(date);
 
+    /* =============== MAIN =============== */
     if (data.Main) {
+      const prevSnap = await db.collection("Main").doc(yesterday).get();
+      const prev = prevSnap.exists ? prevSnap.data().energy : null;
+
       batch.set(
         db.collection("Main").doc(date),
         {
           energy: {
             monthly: data.Main.EnergyMonthly,
             yearly: data.Main.EnergyYearly,
+            dailyMonthly: prev
+              ? calcEnergy(data.Main.EnergyMonthly, prev.monthly)
+              : 0,
+            dailyYearly: prev
+              ? calcEnergy(data.Main.EnergyYearly, prev.yearly)
+              : 0,
           },
-          timestamp: timestamp,
+          timestamp,
         },
         { merge: true }
       );
     }
 
+    /* =============== AIRCON =============== */
     if (data.AirCon) {
+      const prevSnap = await db.collection("AirCon").doc(yesterday).get();
+      const prev = prevSnap.exists ? prevSnap.data().energy : null;
+
       batch.set(
         db.collection("AirCon").doc(date),
         {
           energy: {
             monthly: data.AirCon.EnergyMonthly,
             yearly: data.AirCon.EnergyYearly,
+            dailyMonthly: prev
+              ? calcEnergy(data.AirCon.EnergyMonthly, prev.monthly)
+              : 0,
+            dailyYearly: prev
+              ? calcEnergy(data.AirCon.EnergyYearly, prev.yearly)
+              : 0,
           },
-          timestamp: timestamp,
+          timestamp,
         },
         { merge: true }
       );
     }
 
+    /* =============== LIGHTING =============== */
     if (data.Lighting) {
+      const prevSnap = await db.collection("Lighting").doc(yesterday).get();
+      const prev = prevSnap.exists ? prevSnap.data().energy : null;
+
       batch.set(
         db.collection("Lighting").doc(date),
         {
           energy: {
             monthly: data.Lighting.EnergyMonthly,
             yearly: data.Lighting.EnergyYearly,
+            dailyMonthly: prev
+              ? calcEnergy(data.Lighting.EnergyMonthly, prev.monthly)
+              : 0,
+            dailyYearly: prev
+              ? calcEnergy(data.Lighting.EnergyYearly, prev.yearly)
+              : 0,
           },
-          timestamp: timestamp,
+          timestamp,
         },
         { merge: true }
       );
     }
 
+    /* =============== PLUG =============== */
     if (data.Plug) {
+      const prevSnap = await db.collection("Plug").doc(yesterday).get();
+      const prev = prevSnap.exists ? prevSnap.data().energy : null;
+
       batch.set(
         db.collection("Plug").doc(date),
         {
           energy: {
             monthly: data.Plug.EnergyMonthly,
             yearly: data.Plug.EnergyYearly,
+            dailyMonthly: prev
+              ? calcEnergy(data.Plug.EnergyMonthly, prev.monthly)
+              : 0,
+            dailyYearly: prev
+              ? calcEnergy(data.Plug.EnergyYearly, prev.yearly)
+              : 0,
           },
-          timestamp: timestamp,
+          timestamp,
         },
         { merge: true }
       );
     }
 
+    /* =============== OTHER =============== */
     if (data.Other) {
+      const prevSnap = await db.collection("Other").doc(yesterday).get();
+      const prev = prevSnap.exists ? prevSnap.data().energy : null;
+
       batch.set(
         db.collection("Other").doc(date),
         {
           energy: {
             monthly: data.Other.EnergyMonthly,
             yearly: data.Other.EnergyYearly,
+            dailyMonthly: prev
+              ? calcEnergy(data.Other.EnergyMonthly, prev.monthly)
+              : 0,
+            dailyYearly: prev
+              ? calcEnergy(data.Other.EnergyYearly, prev.yearly)
+              : 0,
           },
-          timestamp: timestamp,
+          timestamp,
         },
         { merge: true }
       );
@@ -169,11 +235,13 @@ async function saveLastReadingPerDay(date, data) {
     await batch.commit();
     lastSubmittedDate = date;
 
-    const now = dayjs().tz("Asia/Phnom_Penh");
-    console.log("Data submitted at", now.format("YYYY-MM-DD HH:mm:ss"));
+    console.log(
+      "Energy calculated & saved at",
+      dayjs().tz("Asia/Phnom_Penh").format("YYYY-MM-DD HH:mm:ss")
+    );
   } catch (err) {
     if (err.code === 8) {
-      console.warn("Firestore quota exceeded – skipped");
+      console.warn("Firestore quota exceeded - skipped");
     } else {
       console.error("Error saving last reading:", err);
     }
@@ -188,87 +256,6 @@ function sendToESP32(message) {
     console.log("ESP32 not connected");
   }
 }
-
-// Save last reading per day (overwrite the same document)
-// async function saveLastReadingPerDay(date, data) {
-//   try {
-//     // Main
-//     if (data.Main) {
-//       await db
-//         .collection("Main")
-//         .doc(date)
-//         .set({
-//           energy: {
-//             monthly: data.Main.EnergyMonthly,
-//             yearly: data.Main.EnergyYearly,
-//           },
-//           timestamp: new Date(),
-//         });
-//     }
-
-//     // AirCon
-//     if (data.AirCon) {
-//       await db
-//         .collection("AirCon")
-//         .doc(date)
-//         .set({
-//           energy: {
-//             monthly: data.AirCon.EnergyMonthly,
-//             yearly: data.AirCon.EnergyYearly,
-//           },
-//           timestamp: new Date(),
-//         });
-//     }
-
-//     // Lighting
-//     if (data.Lighting) {
-//       await db
-//         .collection("Lighting")
-//         .doc(date)
-//         .set({
-//           energy: {
-//             monthly: data.Lighting.EnergyMonthly,
-//             yearly: data.Lighting.EnergyYearly,
-//           },
-//           timestamp: new Date(),
-//         });
-//     }
-
-//     // Plug
-//     if (data.Plug) {
-//       await db
-//         .collection("Plug")
-//         .doc(date)
-//         .set({
-//           energy: {
-//             monthly: data.Plug.EnergyMonthly,
-//             yearly: data.Plug.EnergyYearly,
-//           },
-//           timestamp: new Date(),
-//         });
-//     }
-
-//     // Other
-//     if (data.Other) {
-//       await db
-//         .collection("Other")
-//         .doc(date)
-//         .set({
-//           energy: {
-//             monthly: data.Other.EnergyMonthly,
-//             yearly: data.Other.EnergyYearly,
-//           },
-//           timestamp: new Date(),
-//         });
-//     }
-//     const now = dayjs().tz("Asia/Phnom_Penh");
-
-//     console.log("Saved last reading for", now.format("YYYY-MM-DD"));
-//     console.log("Current Time:", now.format("YYYY-MM-DD HH:mm:ss"));
-//   } catch (err) {
-//     console.error("Error saving last reading:", err.message);
-//   }
-// }
 
 // getter function
 function getLastESP32Message() {
