@@ -6,6 +6,7 @@ const eemsRoutes = require("./routes/eemsRoutes");
 const { initWebSocket } = require("./websocket");
 
 const app = express();
+app.use(express.json());  
 const server = http.createServer(app);
 
 // Initialize WebSocket server

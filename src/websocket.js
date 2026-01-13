@@ -202,7 +202,7 @@ function broadcast(message) {
       client.send(message);
     }
   });
-  // console.log("Broadcasted:", message.toString());
+  console.log("Broadcasted:", message.toString());
 }
 
 module.exports = { initWebSocket, sendToESP32, broadcast, getLastESP32Message };
