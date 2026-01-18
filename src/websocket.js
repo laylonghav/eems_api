@@ -52,6 +52,8 @@ function initWebSocket(server) {
       // const today = dayjs().format("YYYY-MM-DD");
       const today = now.format("YYYY-MM-DD");
       await saveLastReadingPerDay(today, data);
+
+      startApparentPowerScheduler();
     });
 
     ws.on("close", () => {
@@ -77,6 +79,9 @@ function initWebSocket(server) {
   });
 
   console.log("WebSocket initialized");
+
+  // Start the 10-min ApparentPower scheduler once
+  initApparentPowerScheduler();
 }
 
 function isWithinSubmitWindow() {
@@ -84,6 +89,55 @@ function isWithinSubmitWindow() {
   const start = now.clone().hour(23).minute(59).second(50).millisecond(0);
   const end = now.clone().hour(23).minute(59).second(59).millisecond(999);
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
+}
+
+/** Save ApparentPower per load (10-min interval) */
+async function saveApparentPowerPerDay(date, data) {
+  try {
+    const batch = db.batch();
+    const timestamp = new Date();
+    const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
+
+    loads.forEach((load) => {
+      if (data[load]) {
+        batch.set(
+          db.collection(load).doc(date),
+          {
+            apparentPower: data[load].ApparentPower || 0,
+            timestamp_apparent_power: timestamp,
+          },
+          { merge: true },
+        );
+      }
+    });
+
+    await batch.commit();
+    console.log(
+      `ApparentPower saved at ${dayjs().tz("Asia/Phnom_Penh").format("YYYY-MM-DD HH:mm:ss")}`,
+    );
+  } catch (err) {
+    if (err.code === 8) console.warn("Firestore quota exceeded – skipped");
+    else console.error("Error saving ApparentPower per load:", err);
+  }
+}
+
+/** Initialize 10-minute scheduler */
+function initApparentPowerScheduler() {
+  const interval = 10 * 60 * 1000; // 10 minutes
+
+  setInterval(async () => {
+    if (!esp32Data.length) return;
+    const now = dayjs().tz("Asia/Phnom_Penh");
+    const date = now.format("YYYY-MM-DD_HH:mm");
+
+    if (lastApparentPowerSaved === date) return; // prevent duplicate saves
+
+    const latestData = esp32Data[esp32Data.length - 1];
+    await saveApparentPowerPerDay(date, latestData);
+    lastApparentPowerSaved = date;
+  }, interval);
+
+  console.log("ApparentPower scheduler started (every 10 minutes)");
 }
 
 async function saveLastReadingPerDay(date, data) {
@@ -106,7 +160,7 @@ async function saveLastReadingPerDay(date, data) {
           },
           timestamp: timestamp,
         },
-        { merge: true }
+        { merge: true },
       );
     }
 
@@ -120,7 +174,7 @@ async function saveLastReadingPerDay(date, data) {
           },
           timestamp: timestamp,
         },
-        { merge: true }
+        { merge: true },
       );
     }
 
@@ -134,7 +188,7 @@ async function saveLastReadingPerDay(date, data) {
           },
           timestamp: timestamp,
         },
-        { merge: true }
+        { merge: true },
       );
     }
 
@@ -148,7 +202,7 @@ async function saveLastReadingPerDay(date, data) {
           },
           timestamp: timestamp,
         },
-        { merge: true }
+        { merge: true },
       );
     }
 
@@ -162,7 +216,7 @@ async function saveLastReadingPerDay(date, data) {
           },
           timestamp: timestamp,
         },
-        { merge: true }
+        { merge: true },
       );
     }
 
