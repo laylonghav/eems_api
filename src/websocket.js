@@ -77,6 +77,7 @@ function initWebSocket(server) {
   });
 
   console.log("WebSocket initialized");
+  startTenMinuteScheduler();
 }
 
 function isWithinSubmitWindow() {
@@ -85,6 +86,54 @@ function isWithinSubmitWindow() {
   const end = now.clone().hour(23).minute(59).second(59).millisecond(999);
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
+
+async function saveApparentPowerPerDay(data) {
+  try {
+    const now = dayjs().tz("Asia/Phnom_Penh");
+
+    // only exact 10-minute slots
+    if (now.minute() % 10 !== 0) return;
+
+    const date = now.format("YYYY-MM-DD");
+    const timeSlot = now.format("HH:mm");
+
+    const batch = db.batch();
+    const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
+
+    loads.forEach((load) => {
+      if (data[load]) {
+        batch.set(
+          db.collection(load).doc(date),
+          {
+            apparentPower: {
+              [timeSlot]: data[load].ApparentPower ?? 0,
+            },
+            updatedAt: new Date(),
+          },
+          { merge: true },
+        );
+      }
+    });
+
+    await batch.commit();
+    console.log(`ApparentPower saved ${date} ${timeSlot}`);
+  } catch (err) {
+    console.error("Error saving ApparentPower:", err);
+  }
+}
+
+function startTenMinuteScheduler() {
+  setInterval(async () => {
+    if (!esp32Data.length) return;
+
+    const now = dayjs().tz("Asia/Phnom_Penh");
+    if (now.minute() % 10 !== 0) return;
+
+    const latestData = esp32Data[esp32Data.length - 1];
+    await saveApparentPowerPerDay(latestData);
+  }, 10000); // check every 10 seconds
+}
+
 
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
