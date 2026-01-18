@@ -132,7 +132,7 @@ function startTenMinuteScheduler() {
     // Only run at exact 10-minute marks
     if (minute % 10 !== 0) return;
 
-    const slot = now.format("YYYY-MM-DD_HH:mm");
+    const slot = now.format("YYYY-MM-DD");
 
     if (lastApparentPowerSaved === slot) return; // prevent double save
 
