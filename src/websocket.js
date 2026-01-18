@@ -18,6 +18,7 @@ let wss = null;
 // store last ESP32 message
 let esp32Data = []; // realtime storage
 let lastSubmittedDate = null; // Track last date submitted
+let lastApparentPowerSaved = null;  // 10-min ApparentPower tracker
 
 function initWebSocket(server) {
   wss = new WebSocket.Server({ noServer: true });
@@ -81,7 +82,7 @@ function initWebSocket(server) {
   console.log("WebSocket initialized");
 
   // Start the 10-min ApparentPower scheduler once
-  initApparentPowerScheduler();
+  startTenMinuteScheduler();
 }
 
 function isWithinSubmitWindow() {
@@ -121,24 +122,29 @@ async function saveApparentPowerPerDay(date, data) {
   }
 }
 
-/** Initialize 10-minute scheduler */
-function initApparentPowerScheduler() {
-  const interval = 10 * 60 * 1000; // 10 minutes
-
+/** Scheduler to save data every 10 minutes */
+function startTenMinuteScheduler() {
   setInterval(async () => {
     if (!esp32Data.length) return;
-    const now = dayjs().tz("Asia/Phnom_Penh");
-    const date = now.format("YYYY-MM-DD_HH:mm");
 
-    if (lastApparentPowerSaved === date) return; // prevent duplicate saves
+    const now = dayjs().tz("Asia/Phnom_Penh");
+    const minute = now.minute();
+
+    // Only run at exact 10-minute marks
+    if (minute % 10 !== 0) return;
+
+    const slot = now.format("YYYY-MM-DD_HH:mm");
+
+    if (lastSavedSlot === slot) return; // prevent double save
 
     const latestData = esp32Data[esp32Data.length - 1];
-    await saveApparentPowerPerDay(date, latestData);
-    lastApparentPowerSaved = date;
-  }, interval);
+    await saveAllLoads(slot, latestData);
 
-  console.log("ApparentPower scheduler started (every 10 minutes)");
+    lastSavedSlot = slot;
+    console.log(`Data saved for slot ${slot}`);
+  }, 10000); // check every 10 seconds
 }
+
 
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
