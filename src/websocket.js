@@ -138,7 +138,7 @@ function startTenMinuteScheduler() {
     if (lastSavedSlot === slot) return; // prevent double save
 
     const latestData = esp32Data[esp32Data.length - 1];
-    await saveAllLoads(slot, latestData);
+    await saveApparentPowerPerDay(slot, latestData);
 
     lastSavedSlot = slot;
     console.log(`Data saved for slot ${slot}`);
