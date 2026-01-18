@@ -54,7 +54,6 @@ function initWebSocket(server) {
       const today = now.format("YYYY-MM-DD");
       await saveLastReadingPerDay(today, data);
 
-      startApparentPowerScheduler();
     });
 
     ws.on("close", () => {
@@ -135,12 +134,12 @@ function startTenMinuteScheduler() {
 
     const slot = now.format("YYYY-MM-DD_HH:mm");
 
-    if (lastSavedSlot === slot) return; // prevent double save
+    if (lastApparentPowerSaved === slot) return; // prevent double save
 
     const latestData = esp32Data[esp32Data.length - 1];
     await saveApparentPowerPerDay(slot, latestData);
 
-    lastSavedSlot = slot;
+    lastApparentPowerSaved = slot;
     console.log(`Data saved for slot ${slot}`);
   }, 10000); // check every 10 seconds
 }
