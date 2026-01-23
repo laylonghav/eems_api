@@ -19,6 +19,53 @@ let wss = null;
 let esp32Data = []; // realtime storage
 let lastSubmittedDate = null; // Track last date submitted
 let lastApparentPowerSlot = null;
+let lastESP32Timestamp = null;
+const ESP32_TIMEOUT_MS = 60 * 1000; // 1 minute without data
+
+const ZERO_DATA = {
+  Alarm: {
+    Type: "OverCurrent",
+    Status: false,
+  },
+  Main: {
+    PhaseCurrent: [0, 0, 0],
+    PhaseVoltage: [0, 0, 0],
+    ApparentPower: 0,
+    ActivePower: 0,
+    ReactivePower: 0,
+    PowerFactor: 0,
+    EnergyMonthly: 0,
+    EnergyYearly: 0,
+  },
+  AirCon: {
+    PhaseCurrent: [0, 0, 0],
+    PhaseVoltage: [0, 0, 0],
+    ApparentPower: 0,
+    EnergyMonthly: 0,
+    EnergyYearly: 0,
+  },
+  Lighting: {
+    PhaseCurrent: [0, 0, 0],
+    PhaseVoltage: [0, 0, 0],
+    ApparentPower: 0,
+    EnergyMonthly: 0,
+    EnergyYearly: 0,
+  },
+  Plug: {
+    PhaseCurrent: [0, 0, 0],
+    PhaseVoltage: [0, 0, 0],
+    ApparentPower: 0,
+    EnergyMonthly: 0,
+    EnergyYearly: 0,
+  },
+  Other: {
+    PhaseCurrent: [0, 0, 0],
+    PhaseVoltage: [0, 0, 0],
+    ApparentPower: 0,
+    EnergyMonthly: 0,
+    EnergyYearly: 0,
+  },
+};
 
 function initWebSocket(server) {
   wss = new WebSocket.Server({ noServer: true });
@@ -42,6 +89,8 @@ function initWebSocket(server) {
         console.warn("Non-JSON message received:", message);
         return; // just skip storing in Firestore
       }
+
+      lastESP32Timestamp = Date.now(); // ESP32 is alive
 
       // Store in memory
       esp32Data.push({ ...data, time: new Date() });
@@ -165,30 +214,41 @@ async function saveApparentPowerPerDay(data) {
 
 function startTenMinuteScheduler() {
   setInterval(async () => {
-    if (!esp32Data.length) return;
-
     const now = dayjs().tz("Asia/Phnom_Penh");
     if (now.minute() % 10 !== 0) return;
 
-    const latestData = esp32Data[esp32Data.length - 1];
-    await saveApparentPowerPerDay(latestData);
-  }, 10000); // check every 10 seconds
+    let dataToSave;
+
+    if (
+      !lastESP32Timestamp ||
+      Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
+    ) {
+      console.warn("ESP32 OFFLINE → submitting ZERO data");
+      dataToSave = ZERO_DATA;
+    } else {
+      dataToSave = esp32Data[esp32Data.length - 1];
+    }
+
+    await saveApparentPowerPerDay(dataToSave);
+  }, 10000);
 }
+
 
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
-
-  // Prevent multiple writes in the same day
   if (lastSubmittedDate === date) return;
+
+  const finalData =
+    !lastESP32Timestamp || Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
+      ? ZERO_DATA
+      : data;
 
   try {
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
 
-    //  Check ONE collection only (Main is enough)
     const mainDocRef = db.collection("Main").doc(date);
     const mainSnap = await mainDocRef.get();
 
-    // If energy already saved today → STOP
     if (mainSnap.exists && mainSnap.data()?.energy) {
       console.log("Daily energy already saved:", date);
       return;
@@ -198,13 +258,13 @@ async function saveLastReadingPerDay(date, data) {
     const timestamp = new Date();
 
     loads.forEach((load) => {
-      if (data[load]) {
+      if (finalData[load]) {
         batch.set(
           db.collection(load).doc(date),
           {
             energy: {
-              monthly: data[load].EnergyMonthly,
-              yearly: data[load].EnergyYearly,
+              monthly: finalData[load].EnergyMonthly ?? 0,
+              yearly: finalData[load].EnergyYearly ?? 0,
             },
             timestamp,
           },
@@ -214,18 +274,14 @@ async function saveLastReadingPerDay(date, data) {
     });
 
     await batch.commit();
-
     lastSubmittedDate = date;
 
-    console.log(" Daily energy submitted:", date);
+    console.log("Daily energy submitted:", date);
   } catch (err) {
-    if (err.code === 8) {
-      console.warn("Firestore quota exceeded – skipped");
-    } else {
-      console.error("Error saving daily energy:", err);
-    }
+    console.error("Error saving daily energy:", err);
   }
 }
+
 
 // async function saveLastReadingPerDay(date, data) {
 //   if (!isWithinSubmitWindow()) return;
