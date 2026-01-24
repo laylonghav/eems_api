@@ -166,13 +166,11 @@ async function saveApparentPowerPerDay(data) {
       const update = {};
 
       if (rtuId) {
-        // Store under RTU map
-        update[`${rtuId}.${load}.apparentPower.${timeSlot}`] = Number(
+        update[`${rtuId}.apparentPower.${timeSlot}`] = Number(
           data[load].ApparentPower ?? 0,
         );
-        update[`${rtuId}.${load}.updatedAt`] = updatedAt;
+        update[`${rtuId}.updatedAt`] = updatedAt; // one updatedAt per RTU
       } else {
-        // No RTU ID, store directly
         update[`apparentPower.${timeSlot}`] = Number(
           data[load].ApparentPower ?? 0,
         );
@@ -188,8 +186,6 @@ async function saveApparentPowerPerDay(data) {
     console.error("Error saving ApparentPower:", err);
   }
 }
-
-
 
 function startTenMinuteScheduler() {
   setInterval(async () => {
@@ -216,8 +212,6 @@ function startTenMinuteScheduler() {
   }, 10000); // check every 10 seconds
 }
 
-
-
 async function saveLastReadingPerDay(date, data) {
   if (!isWithinSubmitWindow()) return;
   if (lastSubmittedDate === date) return;
@@ -242,13 +236,13 @@ async function saveLastReadingPerDay(date, data) {
       const update = {};
 
       if (rtuId) {
-        update[`${rtuId}.${load}.energy.monthly`] = Number(
+        update[`${rtuId}.energy.monthly`] = Number(
           finalData[load].EnergyMonthly ?? 0,
         );
-        update[`${rtuId}.${load}.energy.yearly`] = Number(
+        update[`${rtuId}.energy.yearly`] = Number(
           finalData[load].EnergyYearly ?? 0,
         );
-        update[`${rtuId}.${load}.timestamp`] = timestamp;
+        update[`${rtuId}.timestamp`] = timestamp;
       } else {
         update[`energy.monthly`] = Number(finalData[load].EnergyMonthly ?? 0);
         update[`energy.yearly`] = Number(finalData[load].EnergyYearly ?? 0);
@@ -266,8 +260,6 @@ async function saveLastReadingPerDay(date, data) {
     console.error("Error saving daily energy:", err);
   }
 }
-
-
 
 // Send message to ESP32 only
 function sendToESP32(message) {
