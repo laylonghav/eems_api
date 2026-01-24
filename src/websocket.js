@@ -137,7 +137,6 @@ function isWithinSubmitWindow() {
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
-
 async function saveApparentPowerPerDay(data) {
   try {
     const now = dayjs().tz("Asia/Phnom_Penh");
@@ -153,18 +152,24 @@ async function saveApparentPowerPerDay(data) {
     if (lastApparentPowerSlot === slotKey) return;
     lastApparentPowerSlot = slotKey;
 
+    // Extract RTU ID from Customer field (e.g., "RTU0001,ID,11.608468,104.810451")
+    const rtuId = data.Customer ? data.Customer.split(",")[0] : "RTU0001";
+
     const batch = db.batch();
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
 
     loads.forEach((load) => {
       if (data[load]) {
+        const docRef = db.collection(load).doc(date);
         batch.set(
-          db.collection(load).doc(date),
+          docRef,
           {
-            apparentPower: {
-              [timeSlot]: data[load].ApparentPower ?? 0,
+            [rtuId]: {
+              apparentPower: {
+                [timeSlot]: data[load].ApparentPower ?? 0,
+              },
+              updatedAt: new Date(),
             },
-            updatedAt: new Date(),
           },
           { merge: true },
         );
@@ -172,7 +177,7 @@ async function saveApparentPowerPerDay(data) {
     });
 
     await batch.commit();
-    console.log(`ApparentPower saved ${date} ${timeSlot}`);
+    console.log(`ApparentPower saved for ${rtuId} ${date} ${timeSlot}`);
   } catch (err) {
     console.error("Error saving ApparentPower:", err);
   }
@@ -209,13 +214,18 @@ async function saveLastReadingPerDay(date, data) {
       : data;
 
   try {
+    // Extract RTU ID from Customer field
+    const rtuId = finalData.Customer
+      ? finalData.Customer.split(",")[0]
+      : "RTU0001";
+
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
 
     const mainDocRef = db.collection("Main").doc(date);
     const mainSnap = await mainDocRef.get();
 
-    if (mainSnap.exists && mainSnap.data()?.energy) {
-      console.log("Daily energy already saved:", date);
+    if (mainSnap.exists && mainSnap.data()?.[rtuId]?.energy) {
+      console.log(`Daily energy already saved for ${rtuId}:`, date);
       return;
     }
 
@@ -224,14 +234,17 @@ async function saveLastReadingPerDay(date, data) {
 
     loads.forEach((load) => {
       if (finalData[load]) {
+        const docRef = db.collection(load).doc(date);
         batch.set(
-          db.collection(load).doc(date),
+          docRef,
           {
-            energy: {
-              monthly: finalData[load].EnergyMonthly ?? 0,
-              yearly: finalData[load].EnergyYearly ?? 0,
+            [rtuId]: {
+              energy: {
+                monthly: finalData[load].EnergyMonthly ?? 0,
+                yearly: finalData[load].EnergyYearly ?? 0,
+              },
+              timestamp,
             },
-            timestamp,
           },
           { merge: true },
         );
@@ -241,7 +254,7 @@ async function saveLastReadingPerDay(date, data) {
     await batch.commit();
     lastSubmittedDate = date;
 
-    console.log("Daily energy submitted:", date);
+    console.log(`Daily energy submitted for ${rtuId}:`, date);
   } catch (err) {
     console.error("Error saving daily energy:", err);
   }
