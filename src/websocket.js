@@ -68,11 +68,15 @@ const ZERO_DATA_TEMPLATE = {
 };
 
 // Helper function to extract RTU ID - defaults to RTU0001
+// Helper function to extract RTU ID - defaults to RTU0001
 function extractRTUId(data) {
   if (!data.Customer) return "RTU0001";
   const parts = data.Customer.split(",");
   if (parts.length > 1 && parts[1].trim()) {
-    return parts[1].trim();
+    const rtuId = parts[1].trim();
+    // If RTU ID is "ID", default to RTU0001
+    if (rtuId === "ID") return "RTU0001";
+    return rtuId;
   }
   return "RTU0001";
 }
