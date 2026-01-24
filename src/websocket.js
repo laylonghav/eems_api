@@ -15,14 +15,14 @@ const { db } = require("./configs/firebase");
 let espClient = null;
 let wss = null;
 
-// store last ESP32 message
-let esp32Data = []; // realtime storage
-let lastSubmittedDate = null; // Track last date submitted
-let lastApparentPowerSlot = null;
-let lastESP32Timestamp = null;
+// Store data per RTU
+let esp32DataByRTU = {}; // { RTU0001: [...], RTU0002: [...] }
+let lastSubmittedDateByRTU = {}; // { RTU0001: "2026-01-24", RTU0002: "2026-01-24" }
+let lastApparentPowerSlotByRTU = {}; // { RTU0001: "2026-01-24 10:00", RTU0002: "2026-01-24 10:10" }
+let lastESP32TimestampByRTU = {}; // { RTU0001: 1234567890, RTU0002: 1234567891 }
 const ESP32_TIMEOUT_MS = 60 * 1000; // 1 minute without data
 
-const ZERO_DATA = {
+const ZERO_DATA_TEMPLATE = {
   Alarm: {
     Type: "OverCurrent",
     Status: false,
@@ -67,6 +67,24 @@ const ZERO_DATA = {
   },
 };
 
+// Helper function to extract RTU ID - defaults to RTU0001
+function extractRTUId(data) {
+  if (!data.Customer) return "RTU0001";
+  const parts = data.Customer.split(",");
+  if (parts.length > 1 && parts[1].trim()) {
+    return parts[1].trim();
+  }
+  return "RTU0001";
+}
+
+// Helper function to create ZERO_DATA with Customer info
+function createZeroData(rtuId, customerName = "Unknown") {
+  return {
+    Customer: `${customerName},${rtuId},0,0`,
+    ...ZERO_DATA_TEMPLATE,
+  };
+}
+
 function initWebSocket(server) {
   wss = new WebSocket.Server({ noServer: true });
 
@@ -90,18 +108,26 @@ function initWebSocket(server) {
         return; // just skip storing in Firestore
       }
 
-      lastESP32Timestamp = Date.now(); // ESP32 is alive
+      const rtuId = extractRTUId(data);
 
-      // Store in memory
-      esp32Data.push({ ...data, time: new Date() });
-      if (esp32Data.length > 1000) esp32Data.shift();
+      // Update timestamp for this specific RTU
+      lastESP32TimestampByRTU[rtuId] = Date.now();
+
+      // Initialize array for this RTU if it doesn't exist
+      if (!esp32DataByRTU[rtuId]) {
+        esp32DataByRTU[rtuId] = [];
+      }
+
+      // Store in memory per RTU
+      esp32DataByRTU[rtuId].push({ ...data, time: new Date() });
+      if (esp32DataByRTU[rtuId].length > 1000) {
+        esp32DataByRTU[rtuId].shift();
+      }
 
       // Save last reading of the day
       const now = dayjs().tz("Asia/Phnom_Penh");
-
-      // const today = dayjs().format("YYYY-MM-DD");
       const today = now.format("YYYY-MM-DD");
-      await saveLastReadingPerDay(today, data);
+      await saveLastReadingPerDay(today, data, rtuId);
     });
 
     ws.on("close", () => {
@@ -137,7 +163,7 @@ function isWithinSubmitWindow() {
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
-async function saveApparentPowerPerDay(data) {
+async function saveApparentPowerPerDay(data, rtuId) {
   try {
     const now = dayjs().tz("Asia/Phnom_Penh");
 
@@ -148,12 +174,9 @@ async function saveApparentPowerPerDay(data) {
     const timeSlot = now.format("HH:mm");
     const slotKey = `${date} ${timeSlot}`;
 
-    // Prevent duplicate submit in same 10-min slot
-    if (lastApparentPowerSlot === slotKey) return;
-    lastApparentPowerSlot = slotKey;
-
-    // Extract RTU ID from Customer field (e.g., "little sheep,RTU0002,11.608468,104.810451")
-    const rtuId = data.Customer ? data.Customer.split(",")[1] : "RTU0001";
+    // Prevent duplicate submit in same 10-min slot for this RTU
+    if (lastApparentPowerSlotByRTU[rtuId] === slotKey) return;
+    lastApparentPowerSlotByRTU[rtuId] = slotKey;
 
     const batch = db.batch();
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
@@ -179,7 +202,7 @@ async function saveApparentPowerPerDay(data) {
     await batch.commit();
     console.log(`ApparentPower saved for ${rtuId} ${date} ${timeSlot}`);
   } catch (err) {
-    console.error("Error saving ApparentPower:", err);
+    console.error(`Error saving ApparentPower for ${rtuId}:`, err);
   }
 }
 
@@ -188,37 +211,52 @@ function startTenMinuteScheduler() {
     const now = dayjs().tz("Asia/Phnom_Penh");
     if (now.minute() % 10 !== 0) return;
 
-    let dataToSave;
+    // Process each RTU separately
+    const allRTUs = Object.keys(esp32DataByRTU);
 
-    if (
-      !lastESP32Timestamp ||
-      Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
-    ) {
-      console.warn("ESP32 OFFLINE → submitting ZERO data");
-      dataToSave = ZERO_DATA;
-    } else {
-      dataToSave = esp32Data[esp32Data.length - 1];
+    // If no RTUs have sent data yet, process RTU0001 with zero data
+    if (allRTUs.length === 0) {
+      console.warn("No RTU data received → submitting ZERO data for RTU0001");
+      await saveApparentPowerPerDay(createZeroData("RTU0001"), "RTU0001");
+      return;
     }
 
-    await saveApparentPowerPerDay(dataToSave);
+    for (const rtuId of allRTUs) {
+      let dataToSave;
+
+      const lastTimestamp = lastESP32TimestampByRTU[rtuId];
+      const isOffline =
+        !lastTimestamp || Date.now() - lastTimestamp > ESP32_TIMEOUT_MS;
+
+      if (isOffline) {
+        console.warn(`${rtuId} OFFLINE → submitting ZERO data`);
+        // Get customer name from last known data if available
+        const lastData =
+          esp32DataByRTU[rtuId]?.[esp32DataByRTU[rtuId].length - 1];
+        const customerName = lastData?.Customer?.split(",")[0] || "Unknown";
+        dataToSave = createZeroData(rtuId, customerName);
+      } else {
+        dataToSave = esp32DataByRTU[rtuId][esp32DataByRTU[rtuId].length - 1];
+      }
+
+      await saveApparentPowerPerDay(dataToSave, rtuId);
+    }
   }, 10000);
 }
 
-async function saveLastReadingPerDay(date, data) {
+async function saveLastReadingPerDay(date, data, rtuId) {
   if (!isWithinSubmitWindow()) return;
-  if (lastSubmittedDate === date) return;
+  if (lastSubmittedDateByRTU[rtuId] === date) return;
 
-  const finalData =
-    !lastESP32Timestamp || Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
-      ? ZERO_DATA
-      : data;
+  const lastTimestamp = lastESP32TimestampByRTU[rtuId];
+  const isOffline =
+    !lastTimestamp || Date.now() - lastTimestamp > ESP32_TIMEOUT_MS;
+
+  const finalData = isOffline
+    ? createZeroData(rtuId, data.Customer?.split(",")[0] || "Unknown")
+    : data;
 
   try {
-    // Extract RTU ID from Customer field (index 1 after split)
-    const rtuId = finalData.Customer
-      ? finalData.Customer.split(",")[1]
-      : "RTU0001";
-
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
 
     const mainDocRef = db.collection("Main").doc(date);
@@ -252,11 +290,11 @@ async function saveLastReadingPerDay(date, data) {
     });
 
     await batch.commit();
-    lastSubmittedDate = date;
+    lastSubmittedDateByRTU[rtuId] = date;
 
     console.log(`Daily energy submitted for ${rtuId}:`, date);
   } catch (err) {
-    console.error("Error saving daily energy:", err);
+    console.error(`Error saving daily energy for ${rtuId}:`, err);
   }
 }
 
@@ -269,9 +307,9 @@ function sendToESP32(message) {
   }
 }
 
-// getter function
+// getter function - returns all RTU data
 function getLastESP32Message() {
-  return esp32Data;
+  return esp32DataByRTU;
 }
 
 // Broadcast message to all connected clients
