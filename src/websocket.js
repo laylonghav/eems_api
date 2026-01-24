@@ -152,8 +152,8 @@ async function saveApparentPowerPerDay(data) {
     if (lastApparentPowerSlot === slotKey) return;
     lastApparentPowerSlot = slotKey;
 
-    // Extract RTU ID from Customer field (e.g., "RTU0001,ID,11.608468,104.810451")
-    const rtuId = data.Customer ? data.Customer.split(",")[0] : "RTU0001";
+    // Extract RTU ID from Customer field (e.g., "little sheep,RTU0002,11.608468,104.810451")
+    const rtuId = data.Customer ? data.Customer.split(",")[1] : "RTU0001";
 
     const batch = db.batch();
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
@@ -214,9 +214,9 @@ async function saveLastReadingPerDay(date, data) {
       : data;
 
   try {
-    // Extract RTU ID from Customer field
+    // Extract RTU ID from Customer field (index 1 after split)
     const rtuId = finalData.Customer
-      ? finalData.Customer.split(",")[0]
+      ? finalData.Customer.split(",")[1]
       : "RTU0001";
 
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
