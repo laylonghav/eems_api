@@ -166,15 +166,16 @@ async function saveApparentPowerPerDay(data) {
       const update = {};
 
       if (rtuId) {
-        update[`${rtuId}.apparentPower.${timeSlot}`] = Number(
-          data[load].ApparentPower ?? 0,
-        );
-        update[`${rtuId}.updatedAt`] = updatedAt; // one updatedAt per RTU
+       update[`${rtuId}.apparentPower.${timeSlot}`] = Number(
+         data[load].ApparentPower ?? 0,
+       );
+       update[`${rtuId}.updatedAt`] = updatedAt;
+
       } else {
-        update[`apparentPower.${timeSlot}`] = Number(
-          data[load].ApparentPower ?? 0,
-        );
-        update[`updatedAt`] = updatedAt;
+       update[`apparentPower.${timeSlot}`] = Number(
+         data[load].ApparentPower ?? 0,
+       );
+       update[`updatedAt`] = updatedAt;
       }
 
       batch.set(docRef, update, { merge: true });
@@ -236,13 +237,14 @@ async function saveLastReadingPerDay(date, data) {
       const update = {};
 
       if (rtuId) {
-        update[`${rtuId}.energy.monthly`] = Number(
-          finalData[load].EnergyMonthly ?? 0,
-        );
-        update[`${rtuId}.energy.yearly`] = Number(
-          finalData[load].EnergyYearly ?? 0,
-        );
-        update[`${rtuId}.timestamp`] = timestamp;
+       update[`${rtuId}.energy.monthly`] = Number(
+         finalData[load].EnergyMonthly ?? 0,
+       );
+       update[`${rtuId}.energy.yearly`] = Number(
+         finalData[load].EnergyYearly ?? 0,
+       );
+       update[`${rtuId}.timestamp`] = timestamp;
+
       } else {
         update[`energy.monthly`] = Number(finalData[load].EnergyMonthly ?? 0);
         update[`energy.yearly`] = Number(finalData[load].EnergyYearly ?? 0);
