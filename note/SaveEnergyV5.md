@@ -137,65 +137,84 @@ function isWithinSubmitWindow() {
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
+// async function saveApparentPowerPerDay(data) {
+//   try {
+//     const now = dayjs().tz("Asia/Phnom_Penh");
+
+//     // only exact 10-minute slots
+//     if (now.minute() % 10 !== 0) return;
+
+//     const date = now.format("YYYY-MM-DD");
+//     const timeSlot = now.format("HH:mm");
+
+//     const batch = db.batch();
+//     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
+
+//     loads.forEach((load) => {
+//       if (data[load]) {
+//         batch.set(
+//           db.collection(load).doc(date),
+//           {
+//             apparentPower: {
+//               [timeSlot]: data[load].ApparentPower ?? 0,
+//             },
+//             updatedAt: new Date(),
+//           },
+//           { merge: true },
+//         );
+//       }
+//     });
+
+//     await batch.commit();
+//     console.log(`ApparentPower saved ${date} ${timeSlot}`);
+//   } catch (err) {
+//     console.error("Error saving ApparentPower:", err);
+//   }
+// }
+
 async function saveApparentPowerPerDay(data) {
   try {
     const now = dayjs().tz("Asia/Phnom_Penh");
 
-    // Only save on 10-minute intervals
+    // Only 10-minute slots
     if (now.minute() % 10 !== 0) return;
 
     const date = now.format("YYYY-MM-DD");
     const timeSlot = now.format("HH:mm");
-    const slotKey = `${date}_${timeSlot}`;
+    const slotKey = `${date} ${timeSlot}`;
 
-    // Prevent duplicate submission in the same 10-min slot
+    // Prevent duplicate submit in same 10-min slot
     if (lastApparentPowerSlot === slotKey) return;
     lastApparentPowerSlot = slotKey;
 
     const batch = db.batch();
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
-    const updatedAt = now.toDate();
-
-    // Optional RTU ID
-    const rtuId = data.Customer ? data.Customer.split(",")[1] : null;
 
     loads.forEach((load) => {
-      if (!data[load]) return;
-
-      const docRef = db.collection(load).doc(date);
-      const update = {};
-
-      if (rtuId) {
-        // Store under RTU map
-        update[`${rtuId}.${load}.apparentPower.${timeSlot}`] = Number(
-          data[load].ApparentPower ?? 0,
+      if (data[load]) {
+        batch.set(
+          db.collection(load).doc(date),
+          {
+            apparentPower: {
+              [timeSlot]: data[load].ApparentPower ?? 0,
+            },
+            updatedAt: new Date(),
+          },
+          { merge: true },
         );
-        update[`${rtuId}.${load}.updatedAt`] = updatedAt;
-      } else {
-        // No RTU ID, store directly
-        update[`apparentPower.${timeSlot}`] = Number(
-          data[load].ApparentPower ?? 0,
-        );
-        update[`updatedAt`] = updatedAt;
       }
-
-      batch.set(docRef, update, { merge: true });
     });
 
     await batch.commit();
-    console.log(`ApparentPower saved → ${date} / ${timeSlot}`);
+    console.log(`ApparentPower saved ${date} ${timeSlot}`);
   } catch (err) {
     console.error("Error saving ApparentPower:", err);
   }
 }
 
-
-
 function startTenMinuteScheduler() {
   setInterval(async () => {
     const now = dayjs().tz("Asia/Phnom_Penh");
-
-    // Only trigger on exact 10-min interval
     if (now.minute() % 10 !== 0) return;
 
     let dataToSave;
@@ -210,12 +229,9 @@ function startTenMinuteScheduler() {
       dataToSave = esp32Data[esp32Data.length - 1];
     }
 
-    if (!dataToSave) return;
-
     await saveApparentPowerPerDay(dataToSave);
-  }, 10000); // check every 10 seconds
+  }, 10000);
 }
-
 
 
 async function saveLastReadingPerDay(date, data) {
@@ -227,47 +243,139 @@ async function saveLastReadingPerDay(date, data) {
       ? ZERO_DATA
       : data;
 
-  const rtuId = data.Customer ? data.Customer.split(",")[1] : null;
-
   try {
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
-    const timestamp = dayjs().tz("Asia/Phnom_Penh").endOf("day").toDate();
+
+    const mainDocRef = db.collection("Main").doc(date);
+    const mainSnap = await mainDocRef.get();
+
+    if (mainSnap.exists && mainSnap.data()?.energy) {
+      console.log("Daily energy already saved:", date);
+      return;
+    }
 
     const batch = db.batch();
+    const timestamp = new Date();
 
     loads.forEach((load) => {
-      if (!finalData[load]) return;
-
-      const docRef = db.collection(load).doc(date);
-      const update = {};
-
-      if (rtuId) {
-        update[`${rtuId}.${load}.energy.monthly`] = Number(
-          finalData[load].EnergyMonthly ?? 0,
+      if (finalData[load]) {
+        batch.set(
+          db.collection(load).doc(date),
+          {
+            energy: {
+              monthly: finalData[load].EnergyMonthly ?? 0,
+              yearly: finalData[load].EnergyYearly ?? 0,
+            },
+            timestamp,
+          },
+          { merge: true },
         );
-        update[`${rtuId}.${load}.energy.yearly`] = Number(
-          finalData[load].EnergyYearly ?? 0,
-        );
-        update[`${rtuId}.${load}.timestamp`] = timestamp;
-      } else {
-        update[`energy.monthly`] = Number(finalData[load].EnergyMonthly ?? 0);
-        update[`energy.yearly`] = Number(finalData[load].EnergyYearly ?? 0);
-        update[`timestamp`] = timestamp;
       }
-
-      batch.set(docRef, update, { merge: true });
     });
 
     await batch.commit();
     lastSubmittedDate = date;
 
-    console.log(`Daily energy submitted → ${date}`);
+    console.log("Daily energy submitted:", date);
   } catch (err) {
     console.error("Error saving daily energy:", err);
   }
 }
 
 
+// async function saveLastReadingPerDay(date, data) {
+//   if (!isWithinSubmitWindow()) return;
+
+//   // Prevent multiple writes in the same day
+//   if (lastSubmittedDate === date) return;
+
+//   try {
+//     const batch = db.batch();
+//     const timestamp = new Date();
+
+//     if (data.Main) {
+//       batch.set(
+//         db.collection("Main").doc(date),
+//         {
+//           energy: {
+//             monthly: data.Main.EnergyMonthly,
+//             yearly: data.Main.EnergyYearly,
+//           },
+//           timestamp: timestamp,
+//         },
+//         { merge: true }
+//       );
+//     }
+
+//     if (data.AirCon) {
+//       batch.set(
+//         db.collection("AirCon").doc(date),
+//         {
+//           energy: {
+//             monthly: data.AirCon.EnergyMonthly,
+//             yearly: data.AirCon.EnergyYearly,
+//           },
+//           timestamp: timestamp,
+//         },
+//         { merge: true }
+//       );
+//     }
+
+//     if (data.Lighting) {
+//       batch.set(
+//         db.collection("Lighting").doc(date),
+//         {
+//           energy: {
+//             monthly: data.Lighting.EnergyMonthly,
+//             yearly: data.Lighting.EnergyYearly,
+//           },
+//           timestamp: timestamp,
+//         },
+//         { merge: true }
+//       );
+//     }
+
+//     if (data.Plug) {
+//       batch.set(
+//         db.collection("Plug").doc(date),
+//         {
+//           energy: {
+//             monthly: data.Plug.EnergyMonthly,
+//             yearly: data.Plug.EnergyYearly,
+//           },
+//           timestamp: timestamp,
+//         },
+//         { merge: true }
+//       );
+//     }
+
+//     if (data.Other) {
+//       batch.set(
+//         db.collection("Other").doc(date),
+//         {
+//           energy: {
+//             monthly: data.Other.EnergyMonthly,
+//             yearly: data.Other.EnergyYearly,
+//           },
+//           timestamp: timestamp,
+//         },
+//         { merge: true }
+//       );
+//     }
+
+//     await batch.commit();
+//     lastSubmittedDate = date;
+
+//     const now = dayjs().tz("Asia/Phnom_Penh");
+//     console.log("Data submitted at", now.format("YYYY-MM-DD HH:mm:ss"));
+//   } catch (err) {
+//     if (err.code === 8) {
+//       console.warn("Firestore quota exceeded – skipped");
+//     } else {
+//       console.error("Error saving last reading:", err);
+//     }
+//   }
+// }
 
 // Send message to ESP32 only
 function sendToESP32(message) {
