@@ -141,14 +141,12 @@ async function saveApparentPowerPerDay(data) {
   try {
     const now = dayjs().tz("Asia/Phnom_Penh");
 
-    // Only save on 10-minute intervals
     if (now.minute() % 10 !== 0) return;
 
     const date = now.format("YYYY-MM-DD");
     const timeSlot = now.format("HH:mm");
     const slotKey = `${date}_${timeSlot}`;
 
-    // Prevent duplicate submission in the same 10-min slot
     if (lastApparentPowerSlot === slotKey) return;
     lastApparentPowerSlot = slotKey;
 
@@ -156,37 +154,61 @@ async function saveApparentPowerPerDay(data) {
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
     const updatedAt = now.toDate();
 
-    // Optional RTU ID
-    const rtuId = data.Customer ? data.Customer.split(",")[1] : null;
-
     loads.forEach((load) => {
       if (!data[load]) return;
 
       const docRef = db.collection(load).doc(date);
       const update = {};
 
-      if (rtuId) {
-       update[`${rtuId}.apparentPower.${timeSlot}`] = Number(
-         data[load].ApparentPower ?? 0,
-       );
-       update[`${rtuId}.updatedAt`] = updatedAt;
-
-      } else {
-       update[`apparentPower.${timeSlot}`] = Number(
-         data[load].ApparentPower ?? 0,
-       );
-       update[`updatedAt`] = updatedAt;
-      }
+      // Store each 10-min value inside the map 'apparentPower'
+      update[`apparentPower.${timeSlot}`] = Number(
+        data[load].ApparentPower ?? 0,
+      );
+      update[`updatedAt`] = updatedAt;
 
       batch.set(docRef, update, { merge: true });
     });
 
     await batch.commit();
-    console.log(`ApparentPower saved → ${date} / ${timeSlot}`);
+    console.log(`✅ ApparentPower saved → ${date} / ${timeSlot}`);
   } catch (err) {
-    console.error("Error saving ApparentPower:", err);
+    console.error("❌ Error saving ApparentPower:", err);
   }
 }
+
+async function saveLastReadingPerDay(date, data) {
+  if (!isWithinSubmitWindow()) return;
+  if (lastSubmittedDate === date) return;
+
+  const finalData =
+    !lastESP32Timestamp || Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
+      ? ZERO_DATA
+      : data;
+
+  const batch = db.batch();
+  const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
+  const timestamp = dayjs().tz("Asia/Phnom_Penh").endOf("day").toDate();
+
+  loads.forEach((load) => {
+    if (!finalData[load]) return;
+
+    const docRef = db.collection(load).doc(date);
+    const update = {};
+
+    // Store energy monthly/yearly and end-of-day timestamp
+    update[`energy.monthly`] = Number(finalData[load].EnergyMonthly ?? 0);
+    update[`energy.yearly`] = Number(finalData[load].EnergyYearly ?? 0);
+    update[`timestamp`] = timestamp;
+
+    batch.set(docRef, update, { merge: true });
+  });
+
+  await batch.commit();
+  lastSubmittedDate = date;
+
+  console.log(`✅ Daily energy submitted → ${date}`);
+}
+
 
 function startTenMinuteScheduler() {
   setInterval(async () => {
@@ -211,56 +233,6 @@ function startTenMinuteScheduler() {
 
     await saveApparentPowerPerDay(dataToSave);
   }, 10000); // check every 10 seconds
-}
-
-async function saveLastReadingPerDay(date, data) {
-  if (!isWithinSubmitWindow()) return;
-  if (lastSubmittedDate === date) return;
-
-  const finalData =
-    !lastESP32Timestamp || Date.now() - lastESP32Timestamp > ESP32_TIMEOUT_MS
-      ? ZERO_DATA
-      : data;
-
-  const rtuId = data.Customer ? data.Customer.split(",")[1] : null;
-
-  try {
-    const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
-    const timestamp = dayjs().tz("Asia/Phnom_Penh").endOf("day").toDate();
-
-    const batch = db.batch();
-
-    loads.forEach((load) => {
-      if (!finalData[load]) return;
-
-      const docRef = db.collection(load).doc(date);
-      const update = {};
-
-      if (rtuId) {
-       update[`${rtuId}.energy.monthly`] = Number(
-         finalData[load].EnergyMonthly ?? 0,
-       );
-       update[`${rtuId}.energy.yearly`] = Number(
-         finalData[load].EnergyYearly ?? 0,
-       );
-       update[`${rtuId}.timestamp`] = timestamp;
-
-      } else {
-        update[`energy.monthly`] = Number(finalData[load].EnergyMonthly ?? 0);
-        update[`energy.yearly`] = Number(finalData[load].EnergyYearly ?? 0);
-        update[`timestamp`] = timestamp;
-      }
-
-      batch.set(docRef, update, { merge: true });
-    });
-
-    await batch.commit();
-    lastSubmittedDate = date;
-
-    console.log(`Daily energy submitted → ${date}`);
-  } catch (err) {
-    console.error("Error saving daily energy:", err);
-  }
 }
 
 // Send message to ESP32 only
