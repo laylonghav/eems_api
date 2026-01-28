@@ -18,7 +18,7 @@ let wss = null;
 // Store data per RTU
 let esp32DataByRTU = {}; // { RTU0001: [...], RTU0002: [...] }
 let lastSubmittedDateByRTU = {}; // { RTU0001: "2026-01-24", RTU0002: "2026-01-24" }
-let lastApparentPowerSlotByRTU = {}; // { RTU0001: "2026-01-24 10:00", RTU0002: "2026-01-24 10:10" }
+let lastActivePowerSlotByRTU = {}; // { RTU0001: "2026-01-24 10:00", RTU0002: "2026-01-24 10:10" }
 let lastESP32TimestampByRTU = {}; // { RTU0001: 1234567890, RTU0002: 1234567891 }
 const ESP32_TIMEOUT_MS = 60 * 1000; // 1 minute without data
 
@@ -30,7 +30,7 @@ const ZERO_DATA_TEMPLATE = {
   Main: {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
-    ApparentPower: 0,
+    ActivePower: 0,
     ActivePower: 0,
     ReactivePower: 0,
     PowerFactor: 0,
@@ -40,34 +40,33 @@ const ZERO_DATA_TEMPLATE = {
   AirCon: {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
-    ApparentPower: 0,
+    ActivePower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
   Lighting: {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
-    ApparentPower: 0,
+    ActivePower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
   Plug: {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
-    ApparentPower: 0,
+    ActivePower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
   Other: {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
-    ApparentPower: 0,
+    ActivePower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
 };
 
-// Helper function to extract RTU ID - defaults to RTU0001
 // Helper function to extract RTU ID - defaults to RTU0001
 function extractRTUId(data) {
   if (!data.Customer) return "RTU0001";
@@ -80,6 +79,15 @@ function extractRTUId(data) {
   }
   return "RTU0001";
 }
+
+// function extractRTUId(data) {
+//   if (!data.Customer) return "RTU0001";
+//   const parts = data.Customer.split(",");
+//   if (parts.length > 1 && parts[1].trim()) {
+//     return parts[1].trim();
+//   }
+//   return "RTU0001";
+// }
 
 // Helper function to create ZERO_DATA with Customer info
 function createZeroData(rtuId, customerName = "Unknown") {
@@ -167,7 +175,7 @@ function isWithinSubmitWindow() {
   return now.isSameOrAfter(start) && now.isSameOrBefore(end);
 }
 
-async function saveApparentPowerPerDay(data, rtuId) {
+async function saveActivePowerPerDay(data, rtuId) {
   try {
     const now = dayjs().tz("Asia/Phnom_Penh");
 
@@ -179,8 +187,8 @@ async function saveApparentPowerPerDay(data, rtuId) {
     const slotKey = `${date} ${timeSlot}`;
 
     // Prevent duplicate submit in same 10-min slot for this RTU
-    if (lastApparentPowerSlotByRTU[rtuId] === slotKey) return;
-    lastApparentPowerSlotByRTU[rtuId] = slotKey;
+    if (lastActivePowerSlotByRTU[rtuId] === slotKey) return;
+    lastActivePowerSlotByRTU[rtuId] = slotKey;
 
     const batch = db.batch();
     const loads = ["Main", "AirCon", "Lighting", "Plug", "Other"];
@@ -192,8 +200,8 @@ async function saveApparentPowerPerDay(data, rtuId) {
           docRef,
           {
             [rtuId]: {
-              apparentPower: {
-                [timeSlot]: data[load].ApparentPower ?? 0,
+              ActivePower: {
+                [timeSlot]: data[load].ActivePower ?? 0,
               },
               updatedAt: new Date(),
             },
@@ -204,9 +212,9 @@ async function saveApparentPowerPerDay(data, rtuId) {
     });
 
     await batch.commit();
-    console.log(`ApparentPower saved for ${rtuId} ${date} ${timeSlot}`);
+    console.log(`ActivePower saved for ${rtuId} ${date} ${timeSlot}`);
   } catch (err) {
-    console.error(`Error saving ApparentPower for ${rtuId}:`, err);
+    console.error(`Error saving ActivePower for ${rtuId}:`, err);
   }
 }
 
@@ -221,7 +229,7 @@ function startTenMinuteScheduler() {
     // If no RTUs have sent data yet, process RTU0001 with zero data
     if (allRTUs.length === 0) {
       console.warn("No RTU data received → submitting ZERO data for RTU0001");
-      await saveApparentPowerPerDay(createZeroData("RTU0001"), "RTU0001");
+      await saveActivePowerPerDay(createZeroData("RTU0001"), "RTU0001");
       return;
     }
 
@@ -243,7 +251,7 @@ function startTenMinuteScheduler() {
         dataToSave = esp32DataByRTU[rtuId][esp32DataByRTU[rtuId].length - 1];
       }
 
-      await saveApparentPowerPerDay(dataToSave, rtuId);
+      await saveActivePowerPerDay(dataToSave, rtuId);
     }
   }, 10000);
 }
