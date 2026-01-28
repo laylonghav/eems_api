@@ -31,7 +31,7 @@ const ZERO_DATA_TEMPLATE = {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
     ActivePower: 0,
-    ActivePower: 0,
+    ApparentPower: 0,
     ReactivePower: 0,
     PowerFactor: 0,
     EnergyMonthly: 0,
@@ -41,6 +41,7 @@ const ZERO_DATA_TEMPLATE = {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
     ActivePower: 0,
+    ApparentPower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
@@ -48,6 +49,7 @@ const ZERO_DATA_TEMPLATE = {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
     ActivePower: 0,
+    ApparentPower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
@@ -55,6 +57,7 @@ const ZERO_DATA_TEMPLATE = {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
     ActivePower: 0,
+    ApparentPower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
@@ -62,6 +65,7 @@ const ZERO_DATA_TEMPLATE = {
     PhaseCurrent: [0, 0, 0],
     PhaseVoltage: [0, 0, 0],
     ActivePower: 0,
+    ApparentPower: 0,
     EnergyMonthly: 0,
     EnergyYearly: 0,
   },
@@ -200,7 +204,7 @@ async function saveActivePowerPerDay(data, rtuId) {
           docRef,
           {
             [rtuId]: {
-              ActivePower: {
+              activePower: {
                 [timeSlot]: data[load].ActivePower ?? 0,
               },
               updatedAt: new Date(),
